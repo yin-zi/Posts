@@ -1,0 +1,9 @@
+baseURL = "https://blog.yzzy.top/"
+languageCode = "zh-cn"
+title = "yy's blog"
+theme = "github-style"
+
+lastmod = true
+
+[frontmatter]
+  lastmod = ["lastmod", ":fileModTime", ":default"]
