@@ -234,13 +234,12 @@ TABLES
 
 - netdev 的钩子是：ingress。
 
-
 **priority** (优先级)指的是一个数字，用于对链进行排序或在某些 Netfilter 操作之间进行设置。可能的值有 nf_ip_pri_conntrack_defrag（-400）、nf_ip_pri_raw（-300）、nf_ip_pri_selinux_first（-225）、nf_ip_pri_conntrack（-200）、nf_ip_pri_mangle（-150）、 nf_ip_pri_nat_dst（-100）、nf_ip_pri_filter（0）、nf_ip_pri_security（50）、nf_ip_pri_nat_src（100）、nf_ip_pri_selinux_last（225）、nf_ip_pri_conntrack_helper（300）。
 
 **policy** 是控制基础链中流量的默认判断语句。可能的值有：accept（默认）和 drop。警告： 将策略设置为丢弃会丢弃所有未被规则集接受的数据包。
 
 ```shell
-# nft (add | create) chain [<family>] <table> <name> [ { type <type> hook <hook> [device <device>] priority <priority> \; [policy <policy> \;] } ]
+# nft (add | create) chain [family] <table> <name> [ { type <type> hook <hook> [device <device>] priority <priority> \; [policy <policy> \;] } ]
 # nft (delete | list | flush) chain [<family>] <table> <name>
 # nft rename chain [<family>] <table> <name> <newname>
 
@@ -259,7 +258,7 @@ CHAINS
 **position** 是一个内部编号，用于在某个句柄之前插入一条规则。
 
 ```bash
-# nft add rule [<family>] <table> <chain> <matches> <statements>
+# nft add rule [family] <table> <chain> <matches> <statements>
 # nft insert rule [<family>] <table> <chain> [position <position>] <matches> <statements>
 # nft replace rule [<family>] <table> <chain> [handle <handle>] <matches> <statements>
 # nft delete rule [<family>] <table> <chain> [handle <handle>]
@@ -626,7 +625,7 @@ nft delete table ip foo
 添加基础链的语法是：
 
 ```bash
-% nft add chain [<family>] <table_name> <chain_name> { type <type> hook <hook> priority <value> \; [policy <policy> \;] [comment \"text comment\" \;] }
+% nft add chain [family] <table_name> <chain_name> { type <type> hook <hook> priority <value> \; [policy <policy> \;] [comment \"text comment\" \;] }
 ```
 
 下面的示例展示了如何向 foo 表（必须是之前创建的）添加新的基础链输入：
@@ -676,8 +675,8 @@ add chain 命令用于注册连接到输入钩子的输入链，这样它就能�
 可能的链类型有：
 
 - filter（过滤），用于过滤数据包。arp、bridge、ip、ip6 和 inet 表系列都支持这种类型。
-- 路由（route），用于在任何相关 IP 头字段或数据包标记被修改时重新路由数据包。如果你熟悉 iptables，该链类型提供了与 mangle 表相同的语义，但仅适用于输出钩子（对于其他钩子，请使用 filter 类型）。ip、ip6 和 inet 表族都支持该类型。
-- nat，用于执行网络地址转换（NAT）。只有给定数据流的第一个数据包才会进入此链；随后的数据包会绕过此链。因此，切勿使用此链进行过滤。ip、ip6 和 inet 表系列都支持 nat 链类型。
+- route（路由），用于在任何相关 IP 头字段或数据包标记被修改时重新路由数据包。如果你熟悉 iptables，该链类型提供了与 mangle 表相同的语义，但仅适用于输出钩子（对于其他钩子，请使用 filter 类型）。ip、ip6 和 inet 表族都支持该类型。
+- nat 用于执行网络地址转换（NAT）。只有给定数据流的第一个数据包才会进入此链；随后的数据包会绕过此链。因此，切勿使用此链进行过滤。ip、ip6 和 inet 表系列都支持 nat 链类型。
 
 ##### 1.2 基础链钩子
 
@@ -995,7 +994,7 @@ table ip filter {
 要替换句柄 2 的规则，请指定其句柄编号和要替换的新规则：
 
 ```shell
-nft replace rule filter input handle 2 counter
+# nft replace rule filter input handle 2 counter
 ```
 
 列出上述替换后的规则集：
@@ -1390,7 +1389,7 @@ add rule filter input ip saddr $ntp_servers counter
 要在数据包中启用 nftrace，请使用包含此语句的规则：
 
 ```shell
-meta nftrace set 1
+# meta nftrace set 1
 ```
 
 毕竟，nftrace 是数据包元信息的一部分。
@@ -1398,7 +1397,7 @@ meta nftrace set 1
 当然，您可以只对特定匹配数据包启用 nftrace。在下面的示例中，我们只对 tcp 数据包启用 nftrace：
 
 ```shell
-ip protocol tcp meta nftrace set 1
+# ip protocol tcp meta nftrace set 1
 ```
 
 要正确调试规则集，关键是要调整 nftrace，使其仅适用于所需数据包的子集，否则可能会获得大量调试/跟踪信息，让人应接不暇。
