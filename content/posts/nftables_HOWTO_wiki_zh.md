@@ -93,6 +93,8 @@ netfilter 钩子是 Linux 内核中的一个框架，它允许内核模块在 Li
 
 [NFTABLES](https://www.netfilter.org/projects/nftables/index.html) 是 [iptables](https://www.netfilter.org/projects/iptables/index.html) 的继任者，它允许更多 灵活、可扩展和高性能的数据包分类。这是所有 开发了花哨的新功能。
 
+![2560px-Netfilter-components.svg.png (2560×1442) (wikimedia.org)](https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Netfilter-components.svg/2560px-Netfilter-components.svg.png)
+
 ![upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg](https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg)
 
 

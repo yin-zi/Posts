@@ -1847,3 +1847,285 @@ ULOG 目标用于提供匹配数据包的用户空间日志。如果匹配到数
 | Option      | **--ulog-qthreshold**                                                                                                                                                                                                                                                                                                                             |
 | Example     | **iptables -A INPUT -p TCP --dport 22 -j ULOG --ulog-qthreshold 10**                                                                                                                                                                                                                                                                              |
 | Explanation | **--ulog-qthreshold**选项告诉**ULOG**目标在向用户空间发送数据之前，要在内核内部排队等候多少个数据包。例如，如果我们将阈值设为 10，内核就会先在内部累积 10 个数据包，然后以单个网链多部分报文的形式发送到用户空间。这里的默认值是 1，因为出于向后兼容的考虑，用户空间守护进程以前不知道如何处理多部分报文。                                  |
+
+## 第 12 章 调试脚本 调试脚本
+编写自己的规则集有一个被低估的重要方面，那就是如何自行调试规则集，以及如何找到规则集中的错误所在。本章将向你介绍调试脚本的几个基本步骤，找出脚本中的问题所在，以及一些需要注意的细节，以及如何避免在不小心运行了错误规则集的情况下无法连接到防火墙。
+这里所讲的大部分内容都是基于规则集是用 bash shell 脚本编写的这一假设，但它们也很容易在其他环境中应用。不幸的是，用 iptables-save 保存的规则集完全是另一段代码，这些调试方法几乎都不会给你带来什么好处。另一方面，iptables-save 文件要简单得多，而且因为它们不能包含任何创建特定规则的脚本代码，所以调试起来也简单得多。
+
+### 12.1. 调试，必需品
+
+在使用 iptables 和 netfilter 以及大多数防火墙时，调试或多或少都是必要的。99% 的防火墙的问题在于，最终都是由人来决定策略和规则集的创建方式，而且我可以向你保证，在编写规则集时很容易出错。有时，这些错误很难被肉眼发现，也很难发现它们在防火墙上造成的漏洞。您不知道或无意中在脚本中出现的漏洞会给您的网络造成严重破坏，并为攻击者创造一个方便的入口。这些漏洞大多可以通过一些好工具轻易找到。
+除此之外，您还可能以其他方式在脚本中写入漏洞，从而造成无法登录防火墙的问题。在运行脚本之前，使用一点小聪明也可以解决这个问题。几乎所有经验丰富的 Unix 管理员都已经注意到了这一点，而我们在调试脚本时基本上也是这样做的。
+
+### 12.2. Bash 调试技巧
+使用 bash 可以做很多事情来帮助调试包含规则集的脚本。查找 bug 的首要问题之一是知道问题出现在哪一行。有两种不同的方法可以解决这个问题，一种是使用 bash -x 标志，另一种是简单地输入一些 echo 语句来找到出现问题的地方。理想情况下，你可以使用 echo 语句，在代码中每隔一定时间添加类似下面的 echo 语句：
+
+```sh
+  ...
+  echo "Debugging message 1."
+  ...
+  echo "Debugging message 2."
+  ...
+```
+
+就我而言，我一般会使用几乎没有价值的信息，只要这些信息中有一些独一无二的内容，这样我就可以通过简单的 grep 或搜索在脚本文件中找到错误信息。现在，如果错误信息出现在 "Debugging message 1."之后，而在 "Debugging message 2."之前，那么我们就知道错误的代码行就在这两条调试信息之间的某个地方。正如你所理解的，bash 有一个不算太坏但至少很奇特的想法，那就是即使之前的某个命令出错了，也会继续执行该命令。在 netfilter 中，这会给你带来一些非常有趣的问题。上述简单地使用 echo 语句查找错误的想法非常简单，但同时也非常好，因为您可以将整个问题缩小到一行代码，并直接看到问题所在。
+
+查找上述问题的第二种方法是使用 bash 的 -x 变量，就像我们之前提到的那样。当然，这可能会带来一些小问题，尤其是当你的脚本比较大、控制台缓冲区不够大的时候。-x 变量的意思很简单，它告诉脚本将脚本中的每一行代码都回放到 shell 的标准输出（通常是控制台）中。你要做的就是将脚本的正常起始行改为
+
+```sh
+#!/bin/bash
+```
+
+```sh
+#!/bin/bash -x
+```
+
+正如你所看到的，这将使你的输出从几行字变成大量的数据输出。代码会向你显示执行的每一条命令行，以及所有变量的值等，这样你就不必费力去弄清代码到底在做什么了。简而言之，执行的每一行都会输出到屏幕上。有一件事可能会让你很高兴，那就是 bash 输出的所有行都以 + 号作为前缀。这使得从实际脚本中分辨错误或警告信息更容易一些，而不仅仅是一个大网状的输出。
+
+对于调试其他几个比较常见的问题，-x 选项也非常有趣，你可能会在使用稍微复杂一点的规则集时遇到这些问题。第一个问题是，你以为只是一个简单的循环，比如 for、if 或 while 语句，但在实际运行中会发生什么？例如，我们来看一个例子。
+
+```sh
+  #!/bin/bash 
+  iptables="/sbin/iptables"
+  $iptables -N output_int_iface
+  cat /etc/configs/machines | while read host; do
+    $iptables -N output-$host
+    $iptables -A output_int_iface -p tcp -d $host -j output-$host
+
+    cat /etc/configs/${host}/ports | while read row2; do
+      $iptables -A output-$host -p tcp --dport $row2 -d $host -j ACCEPT
+    done
+  done
+```
+
+这套规则看起来很简单，但我们还是遇到了问题。通过使用简单的 echo 调试方法，我们得到了以下错误信息，知道这些信息来自上述代码。
+
+```sh
+work3:~# ./test.sh
+Bad argument `output-'
+Try `iptables -h' or 'iptables --help' for more information.
+cat: /etc/configs//ports: No such file or directory
+```
+
+因此，我们打开 bash 的 -x 选项并查看输出结果。输出结果如下所示，你可以看到其中有一些非常奇怪的地方。有几条命令中的 \$host 和 \$row2 变量被替换为空值。仔细观察，我们会发现只有最后一次迭代的代码才会出现问题。要么是我们的程序出错了，要么就是数据有问题。在本例中，数据出现了一个简单的错误，在文件末尾多了一个换行符。这导致循环最后一次遍历，而这是不应该的。只需删除文件尾部的换行符，问题就解决了。这可能不是一个非常优雅的解决方案，但对于私人工作来说应该足够了。否则，你可以添加代码，查看 \$host 和 \$row2 变量中是否有数据。
+
+```sh
+work3:~# ./test.sh
++ iptables=/sbin/iptables
++ /sbin/iptables -N output_int_iface
++ cat /etc/configs/machines
++ read host
++ /sbin/iptables -N output-sto-as-101
++ /sbin/iptables -A output_int_iface -p tcp -d sto-as-101 -j output-sto-as-101
++ cat /etc/configs/sto-as-101/ports
++ read row2
++ /sbin/iptables -A output-sto-as-101 -p tcp --dport 21 -d sto-as-101 -j ACCEPT
++ read row2
++ /sbin/iptables -A output-sto-as-101 -p tcp --dport 22 -d sto-as-101 -j ACCEPT
++ read row2
++ /sbin/iptables -A output-sto-as-101 -p tcp --dport 23 -d sto-as-101 -j ACCEPT
++ read row2
++ read host
++ /sbin/iptables -N output-sto-as-102
++ /sbin/iptables -A output_int_iface -p tcp -d sto-as-102 -j output-sto-as-102
++ cat /etc/configs/sto-as-102/ports
++ read row2
++ /sbin/iptables -A output-sto-as-102 -p tcp --dport 21 -d sto-as-102 -j ACCEPT
++ read row2
++ /sbin/iptables -A output-sto-as-102 -p tcp --dport 22 -d sto-as-102 -j ACCEPT
++ read row2
++ /sbin/iptables -A output-sto-as-102 -p tcp --dport 23 -d sto-as-102 -j ACCEPT
++ read row2
++ read host
++ /sbin/iptables -N output-sto-as-103
++ /sbin/iptables -A output_int_iface -p tcp -d sto-as-103 -j output-sto-as-103
++ cat /etc/configs/sto-as-103/ports
++ read row2
++ /sbin/iptables -A output-sto-as-103 -p tcp --dport 21 -d sto-as-103 -j ACCEPT
++ read row2
++ /sbin/iptables -A output-sto-as-103 -p tcp --dport 22 -d sto-as-103 -j ACCEPT
++ read row2
++ /sbin/iptables -A output-sto-as-103 -p tcp --dport 23 -d sto-as-103 -j ACCEPT
++ read row2
++ read host
++ /sbin/iptables -N output-
++ /sbin/iptables -A output_int_iface -p tcp -d -j output-
+Bad argument `output-'
+Try `iptables -h' or 'iptables --help' for more information.
++ cat /etc/configs//ports
+cat: /etc/configs//ports: No such file or directory
++ read row2
++ read host
+```
+
+如果你通过 SSH 执行防火墙脚本，而控制台在执行脚本的过程中挂起，控制台根本无法返回，你也无法再次通过 SSH 连接，这时你遇到的第三个也是最后一个问题可以借助 -x 选项得到部分解决。在 99.9% 的情况下，这意味着脚本中的某些规则出现了问题。打开 -x 选项，你就能看到脚本到底在哪一行锁死了，希望至少是这样。遗憾的是，有几种情况并非如此。例如，如果脚本设置了一条阻止传入流量的规则，但由于 ssh/telnet 服务器首先将 echo 作为传出流量发送，netfilter 会记住该连接，因此，如果上面有一条处理连接状态的规则，就会允许传入流量。
+
+正如你所看到的，最终要调试规则集的全部内容可能会变得相当复杂。不过，这并非不可能。如果你通过 SSH 等方式远程操作防火墙，你可能还会注意到，当你加载错误的规则集时，防火墙可能会挂起。在这种情况下，还有一件事可以救急。Cron 就是一种很好的救急方法。例如，你在 50 公里外的防火墙上工作，添加了一些规则，删除了一些其他规则，然后删除并插入新更新的规则集。防火墙锁死了，你无法访问它。解决这个问题的唯一办法就是前往防火墙的物理位置，从那里解决问题，除非你采取了预防措施！
+
+### 12.3. 用于调试的系统工具
+
+针对被锁定的防火墙，最好的预防措施之一就是使用 cron 添加一个脚本，每 5 分钟左右运行一次，重置防火墙。cron 脚本行可以如下所示，使用 crontab -e 命令输入。
+
+```sh
+*/5 * * * /etc/init.d/rc.flush-iptables.sh stop
+```
+
+在你开始做一些你认为会或可能会冻结你正在运行的服务器的事情之前，请绝对确保该行将实际工作并完成你期望它做的事情。
+
+另一个经常用于调试脚本的工具是 syslog 设备。它记录了大量不同程序创建的所有日志信息。事实上，几乎所有大型程序都支持 syslog 日志，包括内核。所有发送到 syslog 的信息都有两个非常重要的基本变量，即设施和日志级别/优先级。
+
+设施会告诉 syslog 服务器日志条目来自哪个设施，以及在哪里记录。有几种指定的设施，但现在要讨论的是 Kern 设施，也可称为内核设施。所有 netfilter 生成的信息都将使用该设施发送。
+
+日志级别告诉 syslog 日志信息的优先级。有以下几种优先级可供选择。
+
+1. debug
+2. info
+3. notice
+4. warning
+5. err
+6. crit
+7. alert
+8. emerg
+
+根据这些优先级，我们可以使用 syslog.conf 将它们发送到不同的日志文件。例如，要将所有来自 kern 设备的警告优先级信息发送到一个名为 /var/log/kernwarnings 的文件，我们可以按下图所示操作。这一行应写入 /etc/syslog.conf。
+
+```sh
+kern.warning /var/log/kernwarnings
+```
+
+如你所见，这非常简单。现在，你有望在 /var/log/kernwarnings 文件中找到 netfilter 日志（重启或 HUP syslog 服务器后）。当然，这也取决于你在 netfilter 日志规则中设置的日志级别。日志级别可以用 --log-level 选项来设置。
+
+输入该文件的日志将为你提供你希望通过规则集中的特定日志规则记录的所有数据包的信息。有了这些信息，你就能知道是否有什么具体的问题。例如，您可以在所有链的末尾设置日志规则，以查看是否有任何数据包越过了链的边界。日志条目可能与下面的示例类似，包含大量信息。
+
+```sh
+  Oct 23 17:09:34 localhost kernel: IPT INPUT packet died: IN=eth1 OUT= 
+MAC=08:00:09:cd:f2:27:00:20:1a:11:3d:73:08:00 SRC=200.81.8.14 DST=217.215.68.146 
+LEN=78 TOS=0x00 PREC=0x00 TTL=110 ID=12818 PROTO=UDP SPT=1027 DPT=137 LEN=58
+```
+
+正如你所理解的，系统日志在调试规则集时确实能帮到你。查看这些日志可以帮助你理解为什么你想打开的某个端口无法工作。
+
+### 12.4. Iptables 调试
+有时，Iptables 的调试会很困难，因为 iptables 本身的错误信息在任何时候都不是很友好。因此，最好先了解一下从 iptables 收到的最常见错误信息，以及收到这些信息的原因。
+
+首先要查看的错误信息之一是 "Unknown arg "错误。出现这种情况有多种原因。例如，请看下面。
+
+```sh
+work3:~# iptables -A INPUT --dport 67 -j ACCEPT
+iptables v1.2.9: Unknown arg `--dport'
+Try `iptables -h' or 'iptables --help' for more information.
+```
+
+由于我们只使用了一个参数，所以这个错误比一般的错误更容易解决。通常情况下，你可能使用了很长很长的命令，然后得到这个错误信息。上述情况的问题在于，我们忘记了使用 --protocol 匹配项，因此无法使用 --dport 匹配项。添加 --protocol 匹配也可以解决这个问题。请务必确保没有遗漏任何使用特定匹配所需的特殊前提条件。
+
+另一个非常常见的错误是在命令行中漏掉了破折号 (-)，如下所示。正确的解决办法是只需添加破折号，命令就能正常运行。
+
+```sh
+work3:~# iptables -A INPUT --protocol tcp -dport 67 -j ACCEPT
+Bad argument `67'
+Try `iptables -h' or 'iptables --help' for more information.
+```
+
+最后，还有一种简单的拼写错误，也相当常见。如下图所示。您会发现，错误信息与忘记在规则中添加另一个先决条件匹配时的错误信息完全相同，因此需要仔细查看。
+
+```sh
+work3:~# iptables -A INPUT --protocol tcp --destination-ports 67 -j ACCEPT
+iptables v1.2.9: Unknown arg `--destination-ports'
+Try `iptables -h' or 'iptables --help' for more information.
+```
+
+上面显示的 "未知参数 "错误还有一个可能的原因。如果参数写得很好，而且先决条件中也没有可能的错误，那么目标/匹配/表可能只是没有编译到内核中。例如，假设我们忘记将过滤表支持编译到内核中，那么就会出现下面这种情况：
+
+```sh
+work3:~# iptables -A INPUT -j ACCEPT
+iptables v1.2.9: can't initialize iptables table `filter': Table does not exist 
+(do you need to insmod?)
+Perhaps iptables or your kernel needs to be upgraded.
+```
+
+通常情况下，iptables 应该能够自动 modprobe 内核中尚未存在的特定模块，所以这通常是使用新内核重启后没有正确进行 depmod 的迹象，或者是你已经忘记了该模块。如果有问题的模块是一个匹配模块，那么错误信息就会更加隐晦难懂。例如，请看这条错误信息。
+
+```sh
+work3:~# iptables -A INPUT -m state --state ESTABLISHED -j ACCEPT
+iptables: No chain/target/match by that name
+```
+
+在这种情况下，我们忘记了编译状态模块，正如你所看到的，错误信息并不是很好理解。不过，它还是提示了问题所在。最后，我们又遇到了同样的错误，但这次目标丢失了。从错误信息中可以看出，这两个错误（缺少匹配和/或目标）的错误信息完全相同，因此变得相当复杂。
+
+```sh
+work3:~# iptables -A INPUT -m state --state ESTABLISHED -j REJECT
+iptables: No chain/target/match by that name
+```
+
+最简单的方法就是查看模块所在的目录，以确定是我们忘记了 depmod，还是模块确实丢失了。这是 /lib/modules/2.6.4/kernel/net/ipv4/netfilter 目录。所有以大写字母书写的 ipt_* 文件都是目标文件，而所有以小写字母书写的文件都是匹配文件。例如，ipt_REJECT.ko 是目标文件，而 ipt_state.ko 是匹配文件。
+
+警告：在 2.4 及更早的内核中，所有内核模块的文件扩展名都是 .o，而在 2.6 内核中，文件扩展名变为了 .ko。
+
+另一种从 iptables 本身获得帮助的方法是简单地注释掉脚本中的整条链，看看是否能解决问题。这是一种不得已的解决问题的方法，如果你甚至不知道是哪条链导致了问题，那么这种方法可能会非常有效。通过删除整个链并简单地设置默认策略为 "ACCEPT"，然后进行测试，如果效果更好，那么这就是导致问题的链。如果效果不佳，那就是另一条链的问题，你可以去其他地方找问题。
+
+### 12.5. 其他调试工具
+当然，在调试防火墙脚本时，还有其他一些非常有用的工具。本节将简要介绍最常用的几种工具，以便快速了解防火墙的各方面（内部、外部等）情况。我在这里选择的工具是 nmap 和 nessus 工具。
+
+#### 12.5.1. Nmap
+Nmap 是一款出色的工具，可以从纯粹的防火墙角度查看，并找出哪些端口处于打开状态以及更多底层信息。它支持操作系统指纹、多种不同的端口扫描方法、IPv6 和 IPv4 支持以及网络扫描。
+
+扫描的基本形式通过非常简单的命令行语法完成。别忘了用 -p 选项指定要扫描的端口，例如 -p 1-1024。请看下面的示例。
+
+```sh
+$ nmap -p 1-1024 192.168.0.1
+
+Starting nmap 3.50 ( http://www.insecure.org/nmap/ ) at 2004-03-18 17:19 CET
+Interesting ports on firewall (192.168.0.1):
+(The 1021 ports scanned but not shown below are in state: closed)
+PORT    STATE SERVICE
+22/tcp  open  ssh
+25/tcp  open  smtp
+587/tcp open  submission
+
+Nmap run completed -- 1 IP address (1 host up) scanned in 3.877 seconds
+```
+
+它还能通过操作系统指纹自动猜测被扫描主机的操作系统。虽然指纹识别需要 root 权限，但用来了解大多数人对主机的看法可能也非常有趣。使用操作系统指纹识别可能会像下面的示例列表一样。
+
+```sh
+# nmap -O -p 1-1024 192.168.0.1
+
+Starting nmap 3.50 ( http://www.insecure.org/nmap/ ) at 2004-03-18 17:38 CET
+Interesting ports on firewall (192.168.0.1):
+(The 1021 ports scanned but not shown below are in state: closed)
+PORT    STATE SERVICE
+22/tcp  open  ssh
+25/tcp  open  smtp
+587/tcp open  submission
+Device type: general purpose
+Running: Linux 2.4.X|2.5.X
+OS details: Linux Kernel 2.4.0 - 2.5.20
+Uptime 6.201 days (since Fri Mar 12 12:49:18 2004)
+
+Nmap run completed -- 1 IP address (1 host up) scanned in 14.303 seconds
+```
+
+如你所见，操作系统指纹识别并不完美，但对你和攻击者来说，它都有助于缩小范围。因此，你也有必要了解一下。最好的办法是尽量少给攻击者提供适当的指纹，有了这些信息，你就能很清楚地知道攻击者对你的操作系统了解多少。
+
+当然，nmap 工具的用途远不止这些，您可以在 nmap 主页了解更多信息。更多信息，请查看 Nmap 资源。
+
+正如您所理解的，这是一个测试您主机的绝佳工具，可以找出哪些端口是开放的，哪些是不开放的。例如，在完成设置后，使用 nmap 看看您是否真的成功完成了您想做的事情。是否从正确的端口得到了正确的响应，等等。
+
+#### 12.5.2. Nessus
+nmap 更像是一个低级扫描程序，显示开放端口等，而 nessus 程序则是一个真正的安全扫描程序。它尝试连接不同的端口，最多只能找出不同服务器运行的版本。Nessus 在此基础上更进一步，它能找到所有开放的端口，找出在特定端口上运行的程序和版本，然后测试该程序是否存在不同的安全威胁，最后创建一份关于所有安全威胁的完整报告。
+
+正如你所理解的，这是一个非常有用的工具，可以帮助你更多地了解主机。该程序是以服务器客户端的方式构建的，因此从外部使用外部 nessus 守护进程，或从内部使用内部 nessus 守护进程，都可以很容易地发现防火墙的更多信息。客户端是一个图形用户界面，您可以登录到 nessus 守护进程，进行设置，并指定要扫描漏洞的主机。生成的报告可能与下面的示例类似。
+
+![nessus-report.jpg (720×609) (frozentux.net)](https://www.frozentux.net/iptables-tutorial/chunkyhtml/images/nessus-report.jpg)
+
+注意：使用 Nessus 时应谨慎，因为它可能会导致指定攻击的机器或服务崩溃。幸运的是，那些可能导致机器崩溃的攻击默认是关闭的。
+
+## 第 13 章 rc.firewall 文件
+本章将介绍一个防火墙设置示例以及如何查看脚本文件。我们使用了一个基本设置，并深入探讨了它的工作原理和我们在其中所做的工作。在实际使用脚本之前，应先了解如何解决不同的问题以及可能需要考虑的事项。在对变量进行一些修改后，它可以原样使用，但不建议这样做，因为它可能无法与你的网络设置完美配合。不过，只要你有一个非常基本的设置，只需稍加修改，它就能非常顺利地运行。
+
+注意：请注意，可能有更有效的方法来创建规则集，但编写脚本的目的是为了便于阅读，以便每个人都能理解它，而无需在阅读本脚本之前了解太多 BASH 脚本知识。
+
+### 13.1. rc.firewall 示例
+
+好了，一切都准备就绪，可以查看示例配置脚本了。如果你已经走了这么远，至少应该已经准备好了。这个示例 rc.firewall.txt（也包含在示例脚本代码库附录中）相当大，但没有很多注释。与其寻找注释，我建议你先通读脚本文件，对其有一个基本的了解，然后再回到这里了解整个脚本的细节。
+
