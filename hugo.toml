@@ -1,9 +1,21 @@
-baseURL = "https://blog.yzzy.top/"
+baseURL = "https://yin-zi.github.io/Posts/"
 languageCode = "zh-cn"
 title = "yy's blog"
 theme = "github-style"
 
-lastmod = true
+[params]
+  author = "yy"
+  description = "Never say never."
+  github = "yin-zi"
+  url = "https://yin-zi.github.io/Posts/"
+  keywords = "blog"
+  lastmod = true
+  favicon = "https://raw.githubusercontent.com/MeiK2333/github-style/refs/heads/master/static/images/github-mark.png"
+  avatar = "https://avatars.githubusercontent.com/yin-zi"
+  headerIcon = "https://raw.githubusercontent.com/MeiK2333/github-style/refs/heads/master/static/images/github-mark-white.png"
+  userStatusEmoji = "😀"
+  enableGitalk = false
+  enableSearch = true
 
 [frontmatter]
   lastmod = ["lastmod", ":fileModTime", ":default"]
