@@ -1,10 +1,9 @@
-+++
-title = 'nftables HOWTO wiki'
-date = 2024-01-01T00:00:00+08:00
-draft = false
-
-+++
-
+---
+title: 'nftables HOWTO wiki'
+date: 2024-01-01T00:00:00+08:00
+draft: false
+summary: "nftables 教程"
+---
 [toc]
 
 ## 防火墙
@@ -69,11 +68,7 @@ nft —— 用于数据包过滤和分类的 nftables 框架的管理工具。
 
 > nftables 的命令行工具是 nft
 
-
-
 ---
-
-
 
 ### nftables
 
@@ -97,47 +92,39 @@ netfilter 钩子是 Linux 内核中的一个框架，它允许内核模块在 Li
 
 ![upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg](https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg)
 
-
-
-
-
 ## iptables 命令
 
 iptables对不同的数据包处理功能使用不同的规则表。默认操作的表是filter表，非默认的表可以通过命令行中的选项指定。主要的表有三个，其他的表例如security和raw有着特殊的用途。三个主要的表分别如下：
 
 - filter表是默认的表。它包含了实际的防火墙过滤规则。其内建的规则链包括：
+
   - INPUT
   - OUTPUT
   - FORWARD
-
 - nat表包含了源地址和目的地址转换以及端口转换的规则。这些规则在功能上与防火墙filter规则不同。内建的规则链包括：
+
   - PREROUTING  DNAT/REDIRECT
   - OUTPUT  DNAT/REDIRECT
   - POSTROUTIN  GSNAT/MASQUERADE
 - mangle表包含了设置特殊数据包路由标志的规则。这些规则接下来将在filter表中进行检查。其内建的规则链包括：
+
   - PREROUTING  被路由的数据包
   - INPUT  到达防火墙并通过PREROUTING规则链的数据包
   - FORWARD  修改通过防火墙路由的数据包
   - POSTROUTING  在数据包通过OUTPUT规则链之后但在离开防火墙之前修改数据包
   - OUTPUT  本地生成的数据包
 
-
-
-| Tables↓/Chains→               | PREROUTING | INPUT | FORWARD | OUTPUT | POSTROUTING |
+| Tables↓/Chains→             | PREROUTING | INPUT | FORWARD | OUTPUT | POSTROUTING |
 | ----------------------------- | :--------: | :---: | :-----: | :----: | :---------: |
-| (routing decision)            |            |       |         |   ✓    |             |
-| **raw**                       |     ✓      |       |         |   ✓    |             |
-| (connection tracking enabled) |     ✓      |       |         |   ✓    |             |
-| **mangle**                    |     ✓      |   ✓   |    ✓    |   ✓    |      ✓      |
-| **nat** (DNAT)                |     ✓      |       |         |   ✓    |             |
-| (routing decision)            |     ✓      |       |         |   ✓    |             |
-| **filter**                    |            |   ✓   |    ✓    |   ✓    |             |
-| **security**                  |            |   ✓   |    ✓    |   ✓    |             |
-| **nat** (SNAT)                |            |   ✓   |         |        |      ✓      |
-
-
-
-
+| (routing decision)            |            |      |        |   ✓   |            |
+| **raw**                 |     ✓     |      |        |   ✓   |            |
+| (connection tracking enabled) |     ✓     |      |        |   ✓   |            |
+| **mangle**              |     ✓     |  ✓  |   ✓   |   ✓   |     ✓     |
+| **nat** (DNAT)          |     ✓     |      |        |   ✓   |            |
+| (routing decision)            |     ✓     |      |        |   ✓   |            |
+| **filter**              |            |  ✓  |   ✓   |   ✓   |            |
+| **security**            |            |  ✓  |   ✓   |   ✓   |            |
+| **nat** (SNAT)          |            |  ✓  |        |        |     ✓     |
 
 # nftables HOWTO wiki
 
@@ -229,11 +216,8 @@ TABLES
 **hook** (钩子)指的是数据包在内核中处理的特定阶段。更多信息请参阅 [Netfilter 钩子]()。
 
 - ip、ip6 和 inet 系列的钩子包括：prerouting、input、forward、output、postrouting。
-
 - arp 系列的钩子包括：input、output。
-
 - bridge 系列处理穿越网桥设备的以太网数据包。
-
 - netdev 的钩子是：ingress。
 
 **priority** (优先级)指的是一个数字，用于对链进行排序或在某些 Netfilter 操作之间进行设置。可能的值有 nf_ip_pri_conntrack_defrag（-400）、nf_ip_pri_raw（-300）、nf_ip_pri_selinux_first（-225）、nf_ip_pri_conntrack（-200）、nf_ip_pri_mangle（-150）、 nf_ip_pri_nat_dst（-100）、nf_ip_pri_filter（0）、nf_ip_pri_security（50）、nf_ip_pri_nat_src（100）、nf_ip_pri_selinux_last（225）、nf_ip_pri_conntrack_helper（300）。
@@ -289,8 +273,8 @@ RULES
 - queue：将数据包队列到用户空间，并停止剩余规则评估。
 - continue：用下一条规则继续评估规则集。
 - return：从当前链返回，继续执行上一条链的下一条规则。在基本链中，它等同于接受
-- jump <chain>（跳转 <chain>）：继续执行 <chain> 的第一条规则。它将在发出 return 语句后继续执行下一条规则
-- goto <chain>：与跳转类似，但在新链之后，将在最后一条链上继续计算，而不是在包含 goto 语句的那条链上继续计算。
+- jump `<chain>`（跳转 `<chain>`）：继续执行 `<chain>` 的第一条规则。它将在发出 return 语句后继续执行下一条规则
+- goto `<chain>`：与跳转类似，但在新链之后，将在最后一条链上继续计算，而不是在包含 goto 语句的那条链上继续计算。
 
 > 其它statements查看[官方wiki表格](https://wiki.nftables.org/wiki-nftables/index.php/Quick_reference-nftables_in_10_minutes#Statements)
 
@@ -597,6 +581,7 @@ nft delete table ip foo
 ```
 
 > 故障排除： 自 Linux 内核 3.18 起，你可以用这条命令删除表及其内容。早期的内核要求先刷新表的内容，否则会出错：
+>
 > ```bash
 > % nft delete table filter
 > <cmdline>:1:1-19: Error: Could not delete table: Device or resource busy
@@ -1328,7 +1313,7 @@ define google_dns = 8.8.8.8
 
 #### 4. 文件格式
 
-nft -f <filename> 接受两种格式，第一种是在 nft 列表表输出中看到的格式。第二种是使用相同的语法多次调用 nft 二进制文件，但以原子方式调用。
+nft -f `<filename>` 接受两种格式，第一种是在 nft 列表表输出中看到的格式。第二种是使用相同的语法多次调用 nft 二进制文件，但以原子方式调用。
 
 nftables 输出格式示例：
 
@@ -1759,7 +1744,6 @@ nft -j list ruleset | json_pp
   ```sh
   # nft add rule filter forward meta priority abcd:1234
   ```
-
 - 未设置优先级的数据包可使用元优先级匹配 无
 
   ```sh
@@ -2057,6 +2041,7 @@ ipv4     2 tcp      6 421957 ESTABLISHED src=192.168.0.2 dst=192.168.0.8 sport=3
 更多信息，请参阅设置数据包连接跟踪元信息。
 
 #### 2. 匹配的 Conntrack 元数据
+
 ##### 2.1 CT 状态 - Conntrack 状态
 
 几乎可以肯定，ct state 表达式是您最常用的表达式。
@@ -2162,7 +2147,7 @@ ct [original | reply] protocol l4_protocol。
 ##### 2.16 连接跟踪 L4 协议源地址或目标地址
 
 该匹配需要指定方向：
-ct {original | reply} {proto-src | proto-dst} 
+ct {original | reply} {proto-src | proto-dst}
 
 ##### 2.17 CT ID
 
@@ -2397,12 +2382,12 @@ table ip filter {
 
 该规则会以 "net unreachable（网络不可达）"为由拒绝 IPv4 流量，以 "no route（无路由）"为由拒绝 IPv6 流量。映射如下表所示：
 
-| **ICMPX REASON** | **ICMPv6**       | **ICMPv4**       |
-| ---------------- | ---------------- | ---------------- |
-| admin-prohibited | admin-prohibited | admin-prohibited |
-| port-unreachable | port-unreachable | port-unreachable |
-| no-route         | no-route         | net-unreachable  |
-| host-unreachable | addr-unreachable | host-unreachable |
+| **ICMPX REASON** | **ICMPv6** | **ICMPv4** |
+| ---------------------- | ---------------- | ---------------- |
+| admin-prohibited       | admin-prohibited | admin-prohibited |
+| port-unreachable       | port-unreachable | port-unreachable |
+| no-route               | no-route         | net-unreachable  |
+| host-unreachable       | addr-unreachable | host-unreachable |
 
 ### 跳转到链
 
@@ -3049,7 +3034,9 @@ net.netfilter.nf_conntrack_helper = 1
 ```
 
 #### 3. ct 超时设置 - 设置 conntrack 超时策略
+
 #### 4. CT 预期设置 - 创建 conntrack 预期
+
 #### 5. CT 标记设置 - 设置 conntrack 标记
 
 在 conntrack 中保存数据包 nfmark：
@@ -3527,8 +3514,6 @@ table ip t {
 
 ### 有状态对象
 
-
-
 #### 计数器
 
 #### 定额
@@ -3552,8 +3537,6 @@ table ip t {
 ### 通用集基础设施
 
 #### 集合
-
-
 
 #### 元素超时
 
@@ -3588,8 +3571,6 @@ table ip t {
 ### 使用配置管理系统（如 puppet、ansible 等）
 
 ### 地理 IP 匹配
-
-
 
 ---
 
@@ -3640,16 +3621,9 @@ STATEFUL OBJECTS
            list limits [family]
 ```
 
-
-
 ## 参考链接
 
 - [netfilter/iptables project homepage - The netfilter.org project](https://www.netfilter.org/)
 - [nftables wiki](https://wiki.nftables.org/wiki-nftables/index.php/Main_Page)
-
 - [B站视频—iptables核心运作原理和数据包过滤方法](https://www.bilibili.com/video/BV1Jz4y1u7Lz)
-
 - [万字讲解OpenWrt防火墙iptables，并使用UCI配置防火墙_openwrt添加iptables规则会怎么处理的-CSDN博客](https://blog.csdn.net/qq_41453285/article/details/102734347)
-
-
-

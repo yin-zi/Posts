@@ -1,10 +1,9 @@
-+++
-title = 'Linux 内核模块编程指南-中文版 lkmpg-zh'
-date = 2024-09-01T00:00:00+08:00
-draft = false
-
-+++
-
+---
+title: 'Linux 内核模块编程指南-中文版 lkmpg-zh'
+date: 2024-09-01T00:00:00+08:00
+draft: false
+summary: "Linux 内核模块编程指南-中文版 lkmpg-zh"
+---
 # Linux 内核模块编程指南-中文版 lkmpg-zh
 
 > [lkmpg原英文版在线阅读](https://sysprog21.github.io/lkmpg/)
@@ -306,7 +305,7 @@ sudo journalctl --since "1 hour ago" | grep kernel
 
    有关内核模块 Makefile 的更多详情，请参阅 [Documentation/kbuild/makefiles.rst](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/Documentation/kbuild/makefiles.rst)。在开始破解 Makefile 之前，请务必阅读本文件及相关文件。这可能会为你省下不少功夫。
 
-       这是给读者的另一个练习。看到 init_module() 中返回语句上方的注释了吗？将返回值改为负值，重新编译并再次加载模块。会发生什么？
+   这是给读者的另一个练习。看到 init_module() 中返回语句上方的注释了吗？将返回值改为负值，重新编译并再次加载模块。会发生什么？
 
 ## 4.2 Hello 和 Goodbye
 
@@ -5371,5 +5370,3 @@ echo enable > /dev/key_state
 欢迎对本指南建言献策，尤其是在发现任何重大错误时。要贡献或报告问题，请在 https://github.com/sysprog21/lkmpg 发起一个问题。我们非常欢迎拉取请求。
 
 学习愉快！
-
-[^1]: 线程中断的目的是将更多的工作推给不同的线程，从而减少确认中断所需的最小时间，进而减少处理中断（不能同时处理其他中断）所需的时间。请参见 https://lwn.net/Articles/302043/。
